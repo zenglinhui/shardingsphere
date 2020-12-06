@@ -17,10 +17,10 @@
 
 package org.apache.shardingsphere.scaling.core.service;
 
-import org.apache.shardingsphere.scaling.core.check.DataConsistencyCheckResult;
 import org.apache.shardingsphere.scaling.core.config.ScalingConfiguration;
-import org.apache.shardingsphere.scaling.core.job.ScalingJobProgress;
-import org.apache.shardingsphere.scaling.core.job.ShardingScalingJob;
+import org.apache.shardingsphere.scaling.core.job.JobProgress;
+import org.apache.shardingsphere.scaling.core.job.ScalingJob;
+import org.apache.shardingsphere.scaling.core.job.check.DataConsistencyCheckResult;
 
 import java.util.List;
 import java.util.Map;
@@ -36,34 +36,27 @@ public interface ScalingJobService {
      *
      * @return scaling job service list
      */
-    List<ShardingScalingJob> listJobs();
-    
-    /**
-     * Check new yaml proxy configuration if should scaling.
-     *
-     * @param oldYamlProxyConfiguration old yaml proxy configuration
-     * @param newYamlProxyConfiguration new yaml proxy configuration
-     * @return if should scaling
-     */
-    boolean shouldScaling(String oldYamlProxyConfiguration, String newYamlProxyConfiguration);
+    List<ScalingJob> listJobs();
     
     /**
      * Start scaling job.
      *
-     * @param scalingConfiguration scaling job configuration
+     * @param scalingConfig scaling job configuration
      * @return scaling job
      */
-    Optional<ShardingScalingJob> start(ScalingConfiguration scalingConfiguration);
-    
+    Optional<ScalingJob> start(ScalingConfiguration scalingConfig);
     
     /**
-     * Start scaling job if it should scaling.
+     * Start scaling job.
      *
-     * @param oldYamlProxyConfiguration old yaml proxy configuration
-     * @param newYamlProxyConfiguration new yaml proxy configuration
+     * @param sourceDataSource source data source
+     * @param sourceRule source rule
+     * @param targetDataSource target data source
+     * @param targetRule target rule
+     * @param scalingCallback scaling callback
      * @return scaling job
      */
-    Optional<ShardingScalingJob> start(String oldYamlProxyConfiguration, String newYamlProxyConfiguration);
+    Optional<ScalingJob> start(String sourceDataSource, String sourceRule, String targetDataSource, String targetRule, ScalingCallback scalingCallback);
     
     /**
      * Stop a job.
@@ -78,7 +71,7 @@ public interface ScalingJobService {
      * @param jobId job id
      * @return {@code ShardingScalingJob} instance
      */
-    ShardingScalingJob getJob(long jobId);
+    ScalingJob getJob(long jobId);
     
     /**
      * Get job progress.
@@ -86,7 +79,7 @@ public interface ScalingJobService {
      * @param jobId job id
      * @return scaling job progress
      */
-    ScalingJobProgress getProgress(long jobId);
+    JobProgress getProgress(long jobId);
     
     /**
      * Do data consistency check.

@@ -20,7 +20,7 @@ package org.apache.shardingsphere.scaling.mysql.component;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.map.HashedMap;
 import org.apache.shardingsphere.scaling.core.config.DumperConfiguration;
-import org.apache.shardingsphere.scaling.core.config.JDBCScalingDataSourceConfiguration;
+import org.apache.shardingsphere.scaling.core.config.datasource.StandardJDBCDataSourceConfiguration;
 import org.apache.shardingsphere.scaling.core.config.ScalingContext;
 import org.apache.shardingsphere.scaling.core.config.ServerConfiguration;
 import org.apache.shardingsphere.scaling.core.constant.ScalingConstant;
@@ -57,7 +57,7 @@ public final class MySQLBinlogDumperTest {
     
     private static final String URL = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false;MODE=MySQL";
     
-    private MySQLBinlogDumper mySQLBinlogDumper;
+    private MySQLBinlogDumper mysqlBinlogDumper;
     
     private MemoryChannel channel;
     
@@ -68,13 +68,13 @@ public final class MySQLBinlogDumperTest {
         initTableData(dumperConfig);
         channel = new MemoryChannel(records -> {
         });
-        mySQLBinlogDumper = new MySQLBinlogDumper(dumperConfig, new BinlogPosition("binlog-000001", 4L));
-        mySQLBinlogDumper.setChannel(channel);
+        mysqlBinlogDumper = new MySQLBinlogDumper(dumperConfig, new BinlogPosition("binlog-000001", 4L));
+        mysqlBinlogDumper.setChannel(channel);
     }
     
     private DumperConfiguration mockDumperConfiguration() {
         DumperConfiguration result = new DumperConfiguration();
-        result.setDataSourceConfiguration(new JDBCScalingDataSourceConfiguration(URL, "root", "root"));
+        result.setDataSourceConfig(new StandardJDBCDataSourceConfiguration(URL, "root", "root"));
         Map<String, String> tableNameMap = new HashedMap<>(1);
         tableNameMap.put("t_order", "t_order");
         result.setTableNameMap(tableNameMap);
@@ -83,7 +83,7 @@ public final class MySQLBinlogDumperTest {
     
     @SneakyThrows(SQLException.class)
     private void initTableData(final DumperConfiguration dumperConfig) {
-        DataSource dataSource = new DataSourceManager().getDataSource(dumperConfig.getDataSourceConfiguration());
+        DataSource dataSource = new DataSourceManager().getDataSource(dumperConfig.getDataSourceConfig());
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
             statement.execute("DROP TABLE IF EXISTS t_order");
@@ -160,6 +160,6 @@ public final class MySQLBinlogDumperTest {
     
     @SneakyThrows({NoSuchMethodException.class, ReflectiveOperationException.class})
     private void invokeHandleEvent(final JdbcUri uri, final AbstractBinlogEvent event) {
-        ReflectionUtil.invokeMethod(mySQLBinlogDumper, "handleEvent", new Class[]{JdbcUri.class, AbstractBinlogEvent.class}, new Object[]{uri, event});
+        ReflectionUtil.invokeMethod(mysqlBinlogDumper, "handleEvent", new Class[]{JdbcUri.class, AbstractBinlogEvent.class}, new Object[]{uri, event});
     }
 }

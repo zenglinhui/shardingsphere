@@ -19,13 +19,13 @@ package org.apache.shardingsphere.driver.executor;
 
 import org.apache.shardingsphere.driver.jdbc.core.connection.ShardingSphereConnection;
 import org.apache.shardingsphere.infra.executor.kernel.model.ExecutionGroup;
-import org.apache.shardingsphere.infra.executor.sql.ConnectionMode;
-import org.apache.shardingsphere.infra.executor.sql.query.QueryResult;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.ConnectionMode;
+import org.apache.shardingsphere.infra.executor.sql.execute.result.query.QueryResult;
 import org.apache.shardingsphere.infra.executor.sql.context.ExecutionUnit;
 import org.apache.shardingsphere.infra.executor.sql.context.SQLUnit;
-import org.apache.shardingsphere.infra.executor.sql.execute.driver.jdbc.JDBCExecutionUnit;
-import org.apache.shardingsphere.infra.executor.sql.execute.driver.jdbc.executor.ExecutorExceptionHandler;
-import org.apache.shardingsphere.infra.executor.sql.execute.driver.jdbc.executor.SQLExecutor;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutionUnit;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.SQLExecutorExceptionHandler;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutor;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.junit.Test;
 
@@ -63,7 +63,7 @@ public final class StatementExecutorTest extends AbstractBaseExecutorTest {
     public void setUp() throws SQLException {
         super.setUp();
         ShardingSphereConnection connection = getConnection();
-        actual = spy(new StatementExecutor(connection.getDataSourceMap(), connection.getMetaDataContexts(), new SQLExecutor(getExecutorEngine(), false)));
+        actual = spy(new StatementExecutor(connection.getDataSourceMap(), connection.getMetaDataContexts(), new JDBCExecutor(getExecutorEngine(), false)));
     }
     
     @Test
@@ -131,8 +131,8 @@ public final class StatementExecutorTest extends AbstractBaseExecutorTest {
         SQLException ex = new SQLException("");
         when(statement1.executeQuery(DQL_SQL)).thenThrow(ex);
         when(statement2.executeQuery(DQL_SQL)).thenThrow(ex);
-        List<QueryResult> actualResultSets = actual.executeQuery(createExecutionGroups(Arrays.asList(statement1, statement2), true));
-        assertThat(actualResultSets, is(Arrays.asList((QueryResult) null, null)));
+        List<QueryResult> actualQueryResults = actual.executeQuery(createExecutionGroups(Arrays.asList(statement1, statement2), true));
+        assertThat(actualQueryResults, is(Arrays.asList((QueryResult) null, null)));
         verify(statement1).executeQuery(DQL_SQL);
         verify(statement2).executeQuery(DQL_SQL);
     }
@@ -296,7 +296,7 @@ public final class StatementExecutorTest extends AbstractBaseExecutorTest {
     
     @Test
     public void assertOverallExceptionFailure() throws SQLException {
-        ExecutorExceptionHandler.setExceptionThrown(true);
+        SQLExecutorExceptionHandler.setExceptionThrown(true);
         Statement statement = getStatement();
         SQLException ex = new SQLException("");
         when(statement.execute(DML_SQL)).thenThrow(ex);

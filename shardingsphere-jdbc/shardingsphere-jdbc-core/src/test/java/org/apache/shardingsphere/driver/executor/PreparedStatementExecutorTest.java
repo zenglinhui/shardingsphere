@@ -19,12 +19,12 @@ package org.apache.shardingsphere.driver.executor;
 
 import org.apache.shardingsphere.driver.jdbc.core.connection.ShardingSphereConnection;
 import org.apache.shardingsphere.infra.executor.kernel.model.ExecutionGroup;
-import org.apache.shardingsphere.infra.executor.sql.ConnectionMode;
-import org.apache.shardingsphere.infra.executor.sql.query.QueryResult;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.ConnectionMode;
+import org.apache.shardingsphere.infra.executor.sql.execute.result.query.QueryResult;
 import org.apache.shardingsphere.infra.executor.sql.context.ExecutionUnit;
 import org.apache.shardingsphere.infra.executor.sql.context.SQLUnit;
-import org.apache.shardingsphere.infra.executor.sql.execute.driver.jdbc.JDBCExecutionUnit;
-import org.apache.shardingsphere.infra.executor.sql.execute.driver.jdbc.executor.SQLExecutor;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutionUnit;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutor;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.junit.Test;
 
@@ -61,7 +61,7 @@ public final class PreparedStatementExecutorTest extends AbstractBaseExecutorTes
     public void setUp() throws SQLException {
         super.setUp();
         ShardingSphereConnection connection = getConnection();
-        actual = spy(new PreparedStatementExecutor(connection.getDataSourceMap(), connection.getMetaDataContexts(), new SQLExecutor(getExecutorEngine(), false)));
+        actual = spy(new PreparedStatementExecutor(connection.getDataSourceMap(), connection.getMetaDataContexts(), new JDBCExecutor(getExecutorEngine(), false)));
     }
     
     @Test
@@ -128,8 +128,8 @@ public final class PreparedStatementExecutorTest extends AbstractBaseExecutorTes
         SQLException ex = new SQLException("");
         when(preparedStatement1.executeQuery()).thenThrow(ex);
         when(preparedStatement2.executeQuery()).thenThrow(ex);
-        List<QueryResult> actualResultSets = actual.executeQuery(getExecutionGroups(Arrays.asList(preparedStatement1, preparedStatement2), true));
-        assertThat(actualResultSets, is(Arrays.asList((QueryResult) null, null)));
+        List<QueryResult> actualQueryResults = actual.executeQuery(getExecutionGroups(Arrays.asList(preparedStatement1, preparedStatement2), true));
+        assertThat(actualQueryResults, is(Arrays.asList((QueryResult) null, null)));
         verify(preparedStatement1).executeQuery();
         verify(preparedStatement2).executeQuery();
     }

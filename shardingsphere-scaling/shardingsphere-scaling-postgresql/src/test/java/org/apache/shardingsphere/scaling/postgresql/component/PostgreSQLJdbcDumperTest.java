@@ -20,7 +20,7 @@ package org.apache.shardingsphere.scaling.postgresql.component;
 import lombok.SneakyThrows;
 import org.apache.shardingsphere.scaling.core.config.DumperConfiguration;
 import org.apache.shardingsphere.scaling.core.config.InventoryDumperConfiguration;
-import org.apache.shardingsphere.scaling.core.config.JDBCScalingDataSourceConfiguration;
+import org.apache.shardingsphere.scaling.core.config.datasource.StandardJDBCDataSourceConfiguration;
 import org.apache.shardingsphere.scaling.core.datasource.DataSourceManager;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,12 +38,12 @@ public final class PostgreSQLJdbcDumperTest {
     
     private DataSourceManager dataSourceManager;
     
-    private PostgreSQLJdbcDumper postgreSQLJdbcDumper;
+    private PostgreSQLJdbcDumper jdbcDumper;
     
     @Before
     public void setUp() {
         dataSourceManager = new DataSourceManager();
-        postgreSQLJdbcDumper = new PostgreSQLJdbcDumper(mockInventoryDumperConfiguration(), dataSourceManager);
+        jdbcDumper = new PostgreSQLJdbcDumper(mockInventoryDumperConfiguration(), dataSourceManager);
     }
     
     private InventoryDumperConfiguration mockInventoryDumperConfiguration() {
@@ -56,7 +56,7 @@ public final class PostgreSQLJdbcDumperTest {
     
     @SneakyThrows(SQLException.class)
     private void initTableData(final DumperConfiguration dumperConfig) {
-        DataSource dataSource = dataSourceManager.getDataSource(dumperConfig.getDataSourceConfiguration());
+        DataSource dataSource = dataSourceManager.getDataSource(dumperConfig.getDataSourceConfig());
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
             statement.execute("DROP TABLE IF EXISTS t_order");
@@ -67,16 +67,16 @@ public final class PostgreSQLJdbcDumperTest {
     
     @Test
     public void assertCreatePreparedStatement() throws SQLException {
-        DataSource dataSource = dataSourceManager.getDataSource(mockDumperConfiguration().getDataSourceConfiguration());
+        DataSource dataSource = dataSourceManager.getDataSource(mockDumperConfiguration().getDataSourceConfig());
         try (Connection connection = dataSource.getConnection();
-             PreparedStatement preparedStatement = postgreSQLJdbcDumper.createPreparedStatement(connection, "SELECT * FROM t_order")) {
+             PreparedStatement preparedStatement = jdbcDumper.createPreparedStatement(connection, "SELECT * FROM t_order")) {
             assertThat(preparedStatement.getFetchSize(), is(1));
         }
     }
     
     private DumperConfiguration mockDumperConfiguration() {
         DumperConfiguration result = new DumperConfiguration();
-        result.setDataSourceConfiguration(new JDBCScalingDataSourceConfiguration("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false;MODE=PostgreSQL", "root", "root"));
+        result.setDataSourceConfig(new StandardJDBCDataSourceConfiguration("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false;MODE=PostgreSQL", "root", "root"));
         return result;
     }
 }

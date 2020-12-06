@@ -17,40 +17,48 @@
 
 package org.apache.shardingsphere.scaling.core.service;
 
-import org.apache.shardingsphere.scaling.core.check.DataConsistencyCheckResult;
-import org.apache.shardingsphere.scaling.core.check.DataConsistencyChecker;
+import lombok.RequiredArgsConstructor;
+import org.apache.shardingsphere.infra.executor.kernel.thread.ExecutorThreadFactoryBuilder;
+import org.apache.shardingsphere.scaling.core.config.JobConfiguration;
+import org.apache.shardingsphere.scaling.core.config.RuleConfiguration;
 import org.apache.shardingsphere.scaling.core.config.ScalingConfiguration;
-import org.apache.shardingsphere.scaling.core.job.ShardingScalingJob;
-import org.apache.shardingsphere.scaling.core.utils.ProxyConfigurationUtil;
-import org.apache.shardingsphere.scaling.core.utils.SyncConfigurationUtil;
+import org.apache.shardingsphere.scaling.core.config.datasource.ShardingSphereJDBCDataSourceConfiguration;
+import org.apache.shardingsphere.scaling.core.job.JobProgress;
+import org.apache.shardingsphere.scaling.core.job.ScalingJob;
+import org.apache.shardingsphere.scaling.core.job.check.DataConsistencyCheckResult;
+import org.apache.shardingsphere.scaling.core.job.check.DataConsistencyChecker;
+import org.apache.shardingsphere.scaling.core.utils.ScalingTaskUtil;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Abstract scaling job service.
  */
 public abstract class AbstractScalingJobService implements ScalingJobService {
     
-    @Override
-    public boolean shouldScaling(final String oldYamlProxyConfiguration, final String newYamlProxyConfiguration) {
-        ScalingConfiguration scalingConfiguration = ProxyConfigurationUtil.toScalingConfiguration(oldYamlProxyConfiguration, newYamlProxyConfiguration);
-        SyncConfigurationUtil.fillInShardingTables(scalingConfiguration);
-        return shouldScaling(scalingConfiguration);
-    }
-    
-    private boolean shouldScaling(final ScalingConfiguration scalingConfiguration) {
-        return scalingConfiguration.getJobConfiguration().getShardingTables().length > 0;
-    }
+    private static final ScheduledExecutorService FINISH_CHECK_EXECUTOR = Executors.newSingleThreadScheduledExecutor(ExecutorThreadFactoryBuilder.build("Scaling-finish-check-%d"));
     
     @Override
-    public Optional<ShardingScalingJob> start(final String oldYamlProxyConfiguration, final String newYamlProxyConfiguration) {
-        ScalingConfiguration scalingConfiguration = ProxyConfigurationUtil.toScalingConfiguration(oldYamlProxyConfiguration, newYamlProxyConfiguration);
-        SyncConfigurationUtil.fillInShardingTables(scalingConfiguration);
-        if (!shouldScaling(scalingConfiguration)) {
-            return Optional.empty();
+    public Optional<ScalingJob> start(final String sourceDataSource, final String sourceRule, final String targetDataSource, final String targetRule, final ScalingCallback scalingCallback) {
+        Optional<ScalingJob> result = start(sourceDataSource, sourceRule, targetDataSource, targetRule);
+        if (!result.isPresent()) {
+            scalingCallback.onSuccess();
+            return result;
         }
-        return start(scalingConfiguration);
+        FINISH_CHECK_EXECUTOR.scheduleWithFixedDelay(new JobFinishChecker(result.get(), scalingCallback), 3, 1, TimeUnit.MINUTES);
+        return result;
+    }
+    
+    private Optional<ScalingJob> start(final String sourceDataSource, final String sourceRule, final String targetDataSource, final String targetRule) {
+        ScalingConfiguration scalingConfig = new ScalingConfiguration();
+        scalingConfig.setRuleConfiguration(
+                new RuleConfiguration(new ShardingSphereJDBCDataSourceConfiguration(sourceDataSource, sourceRule), new ShardingSphereJDBCDataSourceConfiguration(targetDataSource, targetRule)));
+        scalingConfig.setJobConfiguration(new JobConfiguration());
+        return start(scalingConfig);
     }
     
     @Override
@@ -61,16 +69,41 @@ public abstract class AbstractScalingJobService implements ScalingJobService {
     /**
      * Do data consistency check.
      *
-     * @param shardingScalingJob sharding scaling job
+     * @param scalingJob scaling job
      * @return data consistency check result
      */
-    protected Map<String, DataConsistencyCheckResult> dataConsistencyCheck(final ShardingScalingJob shardingScalingJob) {
-        DataConsistencyChecker dataConsistencyChecker = shardingScalingJob.getDataConsistencyChecker();
+    protected Map<String, DataConsistencyCheckResult> dataConsistencyCheck(final ScalingJob scalingJob) {
+        DataConsistencyChecker dataConsistencyChecker = scalingJob.getDataConsistencyChecker();
         Map<String, DataConsistencyCheckResult> result = dataConsistencyChecker.countCheck();
         if (result.values().stream().allMatch(DataConsistencyCheckResult::isCountValid)) {
             Map<String, Boolean> dataCheckResult = dataConsistencyChecker.dataCheck();
             result.forEach((key, value) -> value.setDataValid(dataCheckResult.getOrDefault(key, false)));
         }
         return result;
+    }
+    
+    @RequiredArgsConstructor
+    private class JobFinishChecker implements Runnable {
+        
+        private final ScalingJob scalingJob;
+        
+        private final ScalingCallback scalingCallback;
+        
+        private boolean finished;
+        
+        @Override
+        public void run() {
+            if (finished) {
+                return;
+            }
+            JobProgress jobProgress = getProgress(scalingJob.getJobId());
+            if (jobProgress.getStatus().contains("FAILURE")) {
+                finished = true;
+                scalingCallback.onFailure();
+            } else if (ScalingTaskUtil.allTasksAlmostFinished(jobProgress, scalingJob.getScalingConfig().getJobConfiguration())) {
+                finished = true;
+                scalingCallback.onSuccess();
+            }
+        }
     }
 }

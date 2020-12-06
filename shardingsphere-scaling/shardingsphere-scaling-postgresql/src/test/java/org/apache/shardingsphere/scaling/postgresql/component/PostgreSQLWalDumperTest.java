@@ -18,10 +18,10 @@
 package org.apache.shardingsphere.scaling.postgresql.component;
 
 import org.apache.shardingsphere.scaling.core.config.DumperConfiguration;
-import org.apache.shardingsphere.scaling.core.config.JDBCScalingDataSourceConfiguration;
+import org.apache.shardingsphere.scaling.core.config.datasource.StandardJDBCDataSourceConfiguration;
 import org.apache.shardingsphere.scaling.core.config.ScalingContext;
 import org.apache.shardingsphere.scaling.core.config.ServerConfiguration;
-import org.apache.shardingsphere.scaling.core.exception.SyncTaskExecuteException;
+import org.apache.shardingsphere.scaling.core.exception.ScalingTaskExecuteException;
 import org.apache.shardingsphere.scaling.core.execute.executor.channel.MemoryChannel;
 import org.apache.shardingsphere.scaling.core.utils.ReflectionUtil;
 import org.apache.shardingsphere.scaling.postgresql.wal.LogicalReplication;
@@ -56,9 +56,9 @@ public final class PostgreSQLWalDumperTest {
     
     private WalPosition position;
     
-    private PostgreSQLWalDumper postgreSQLWalDumper;
+    private PostgreSQLWalDumper walDumper;
     
-    private JDBCScalingDataSourceConfiguration jdbcDataSourceConfig;
+    private StandardJDBCDataSourceConfiguration jdbcDataSourceConfig;
     
     private MemoryChannel channel;
     
@@ -66,23 +66,23 @@ public final class PostgreSQLWalDumperTest {
     public void setUp() {
         ScalingContext.getInstance().init(new ServerConfiguration());
         position = new WalPosition(LogSequenceNumber.valueOf(100L));
-        postgreSQLWalDumper = new PostgreSQLWalDumper(mockDumperConfiguration(), position);
+        walDumper = new PostgreSQLWalDumper(mockDumperConfiguration(), position);
         channel = new MemoryChannel(records -> {
         });
-        postgreSQLWalDumper.setChannel(channel);
+        walDumper.setChannel(channel);
     }
     
     private DumperConfiguration mockDumperConfiguration() {
-        jdbcDataSourceConfig = new JDBCScalingDataSourceConfiguration("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false;MODE=PostgreSQL", "root", "root");
+        jdbcDataSourceConfig = new StandardJDBCDataSourceConfiguration("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false;MODE=PostgreSQL", "root", "root");
         DumperConfiguration result = new DumperConfiguration();
-        result.setDataSourceConfiguration(jdbcDataSourceConfig);
+        result.setDataSourceConfig(jdbcDataSourceConfig);
         return result;
     }
     
     @Test
     public void assertStart() throws SQLException, NoSuchFieldException, IllegalAccessException {
         try {
-            ReflectionUtil.setFieldValue(postgreSQLWalDumper, "logicalReplication", logicalReplication);
+            ReflectionUtil.setFieldValue(walDumper, "logicalReplication", logicalReplication);
             when(logicalReplication.createPgConnection(jdbcDataSourceConfig)).thenReturn(pgConnection);
             when(pgConnection.unwrap(PgConnection.class)).thenReturn(pgConnection);
             when(pgConnection.getTimestampUtils()).thenReturn(null);
@@ -90,8 +90,8 @@ public final class PostgreSQLWalDumperTest {
             ByteBuffer data = ByteBuffer.wrap("table public.test: DELETE: data[integer]:1".getBytes());
             when(pgReplicationStream.readPending()).thenReturn(null).thenReturn(data).thenThrow(new SQLException(""));
             when(pgReplicationStream.getLastReceiveLSN()).thenReturn(LogSequenceNumber.valueOf(101L));
-            postgreSQLWalDumper.start();
-        } catch (final SyncTaskExecuteException ignored) {
+            walDumper.start();
+        } catch (final ScalingTaskExecuteException ignored) {
         }
         assertThat(channel.fetchRecords(100, 0).size(), is(1));
     }

@@ -25,9 +25,9 @@ import org.apache.shardingsphere.driver.jdbc.core.datasource.metadata.ShardingSp
 import org.apache.shardingsphere.driver.jdbc.core.statement.ShardingSpherePreparedStatement;
 import org.apache.shardingsphere.driver.jdbc.core.statement.ShardingSphereStatement;
 import org.apache.shardingsphere.infra.context.metadata.MetaDataContexts;
-import org.apache.shardingsphere.infra.executor.sql.ConnectionMode;
-import org.apache.shardingsphere.infra.executor.sql.group.driver.jdbc.ExecutorJDBCManager;
-import org.apache.shardingsphere.infra.executor.sql.group.driver.jdbc.StatementOption;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.ConnectionMode;
+import org.apache.shardingsphere.infra.executor.sql.prepare.driver.jdbc.ExecutorJDBCManager;
+import org.apache.shardingsphere.infra.executor.sql.prepare.driver.jdbc.StatementOption;
 import org.apache.shardingsphere.transaction.context.TransactionContexts;
 import org.apache.shardingsphere.transaction.core.TransactionType;
 import org.apache.shardingsphere.transaction.spi.ShardingTransactionManager;
@@ -166,7 +166,7 @@ public final class ShardingSphereConnection extends AbstractConnectionAdapter im
     @SuppressWarnings("MagicConstant")
     @Override
     public PreparedStatement createStorageResource(final String sql, final List<Object> parameters,
-                                                         final Connection connection, final ConnectionMode connectionMode, final StatementOption option) throws SQLException {
+                                                   final Connection connection, final ConnectionMode connectionMode, final StatementOption option) throws SQLException {
         return option.isReturnGeneratedKeys() ? connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
                 : connection.prepareStatement(sql, option.getResultSetType(), option.getResultSetConcurrency(), option.getResultSetHoldability());
     }

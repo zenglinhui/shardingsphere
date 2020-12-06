@@ -20,15 +20,14 @@ package org.apache.shardingsphere.driver.executor;
 import org.apache.shardingsphere.infra.binder.statement.SQLStatementContext;
 import org.apache.shardingsphere.infra.context.metadata.MetaDataContexts;
 import org.apache.shardingsphere.infra.executor.kernel.model.ExecutionGroup;
-import org.apache.shardingsphere.infra.executor.sql.ConnectionMode;
-import org.apache.shardingsphere.infra.executor.sql.query.QueryResult;
-import org.apache.shardingsphere.infra.executor.sql.execute.driver.jdbc.JDBCExecutionUnit;
-import org.apache.shardingsphere.infra.executor.sql.execute.driver.jdbc.executor.ExecutorExceptionHandler;
-import org.apache.shardingsphere.infra.executor.sql.execute.driver.jdbc.executor.SQLExecutor;
-import org.apache.shardingsphere.infra.executor.sql.execute.driver.jdbc.executor.SQLExecutorCallback;
-import org.apache.shardingsphere.infra.executor.sql.execute.driver.jdbc.executor.impl.DefaultSQLExecutorCallback;
-import org.apache.shardingsphere.infra.executor.sql.query.jdbc.MemoryJDBCQueryResult;
-import org.apache.shardingsphere.infra.executor.sql.query.jdbc.StreamJDBCQueryResult;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.ConnectionMode;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.SQLExecutorExceptionHandler;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutionUnit;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutor;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutorCallback;
+import org.apache.shardingsphere.infra.executor.sql.execute.result.query.QueryResult;
+import org.apache.shardingsphere.infra.executor.sql.execute.result.query.impl.driver.jdbc.type.memory.JDBCMemoryQueryResult;
+import org.apache.shardingsphere.infra.executor.sql.execute.result.query.impl.driver.jdbc.type.stream.JDBCStreamQueryResult;
 import org.apache.shardingsphere.infra.route.context.RouteUnit;
 import org.apache.shardingsphere.infra.rule.type.DataNodeContainedRule;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
@@ -47,14 +46,14 @@ import java.util.stream.Collectors;
  */
 public final class StatementExecutor extends AbstractStatementExecutor {
     
-    public StatementExecutor(final Map<String, DataSource> dataSourceMap, final MetaDataContexts metaDataContexts, final SQLExecutor sqlExecutor) {
-        super(dataSourceMap, metaDataContexts, sqlExecutor);
+    public StatementExecutor(final Map<String, DataSource> dataSourceMap, final MetaDataContexts metaDataContexts, final JDBCExecutor jdbcExecutor) {
+        super(dataSourceMap, metaDataContexts, jdbcExecutor);
     }
     
     @Override
     public List<QueryResult> executeQuery(final Collection<ExecutionGroup<JDBCExecutionUnit>> executionGroups) throws SQLException {
-        boolean isExceptionThrown = ExecutorExceptionHandler.isExceptionThrown();
-        SQLExecutorCallback<QueryResult> sqlExecutorCallback = new DefaultSQLExecutorCallback<QueryResult>(getMetaDataContexts().getDatabaseType(), isExceptionThrown) {
+        boolean isExceptionThrown = SQLExecutorExceptionHandler.isExceptionThrown();
+        JDBCExecutorCallback<QueryResult> jdbcExecutorCallback = new JDBCExecutorCallback<QueryResult>(getMetaDataContexts().getDatabaseType(), isExceptionThrown) {
             
             @Override
             protected QueryResult executeSQL(final String sql, final Statement statement, final ConnectionMode connectionMode) throws SQLException {
@@ -63,10 +62,10 @@ public final class StatementExecutor extends AbstractStatementExecutor {
             
             private QueryResult createQueryResult(final String sql, final Statement statement, final ConnectionMode connectionMode) throws SQLException {
                 ResultSet resultSet = statement.executeQuery(sql);
-                return ConnectionMode.MEMORY_STRICTLY == connectionMode ? new StreamJDBCQueryResult(resultSet) : new MemoryJDBCQueryResult(resultSet);
+                return ConnectionMode.MEMORY_STRICTLY == connectionMode ? new JDBCStreamQueryResult(resultSet) : new JDBCMemoryQueryResult(resultSet);
             }
         };
-        return getSqlExecutor().execute(executionGroups, sqlExecutorCallback);
+        return getJdbcExecutor().execute(executionGroups, jdbcExecutorCallback);
     }
     
     @Override
@@ -123,15 +122,15 @@ public final class StatementExecutor extends AbstractStatementExecutor {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private int executeUpdate(final Collection<ExecutionGroup<JDBCExecutionUnit>> executionGroups, final Updater updater,
                               final SQLStatementContext<?> sqlStatementContext, final Collection<RouteUnit> routeUnits) throws SQLException {
-        boolean isExceptionThrown = ExecutorExceptionHandler.isExceptionThrown();
-        SQLExecutorCallback sqlExecutorCallback = new DefaultSQLExecutorCallback<Integer>(getMetaDataContexts().getDatabaseType(), isExceptionThrown) {
+        boolean isExceptionThrown = SQLExecutorExceptionHandler.isExceptionThrown();
+        JDBCExecutorCallback jdbcExecutorCallback = new JDBCExecutorCallback<Integer>(getMetaDataContexts().getDatabaseType(), isExceptionThrown) {
             
             @Override
             protected Integer executeSQL(final String sql, final Statement statement, final ConnectionMode connectionMode) throws SQLException {
                 return updater.executeUpdate(statement, sql);
             }
         };
-        List<Integer> results = getSqlExecutor().execute(executionGroups, sqlExecutorCallback);
+        List<Integer> results = getJdbcExecutor().execute(executionGroups, jdbcExecutorCallback);
         refreshSchema(getMetaDataContexts().getDefaultMetaData(), sqlStatementContext.getSqlStatement(), routeUnits);
         if (isNeedAccumulate(getMetaDataContexts().getDefaultMetaData().getRuleMetaData().getRules().stream().filter(
             rule -> rule instanceof DataNodeContainedRule).collect(Collectors.toList()), sqlStatementContext)) {
@@ -190,18 +189,18 @@ public final class StatementExecutor extends AbstractStatementExecutor {
         return execute(executionGroups, (statement, sql) -> statement.execute(sql, columnNames), sqlStatement, routeUnits);
     }
     
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings("rawtypes")
     private boolean execute(final Collection<ExecutionGroup<JDBCExecutionUnit>> executionGroups, final Executor executor,
                             final SQLStatement sqlStatement, final Collection<RouteUnit> routeUnits) throws SQLException {
-        boolean isExceptionThrown = ExecutorExceptionHandler.isExceptionThrown();
-        SQLExecutorCallback sqlExecutorCallback = new DefaultSQLExecutorCallback<Boolean>(getMetaDataContexts().getDatabaseType(), isExceptionThrown) {
+        boolean isExceptionThrown = SQLExecutorExceptionHandler.isExceptionThrown();
+        JDBCExecutorCallback jdbcExecutorCallback = new JDBCExecutorCallback<Boolean>(getMetaDataContexts().getDatabaseType(), isExceptionThrown) {
             
             @Override
             protected Boolean executeSQL(final String sql, final Statement statement, final ConnectionMode connectionMode) throws SQLException {
                 return executor.execute(statement, sql);
             }
         };
-        return executeAndRefreshMetaData(executionGroups, sqlStatement, routeUnits, sqlExecutorCallback);
+        return executeAndRefreshMetaData(executionGroups, sqlStatement, routeUnits, jdbcExecutorCallback);
     }
     
     private interface Updater {

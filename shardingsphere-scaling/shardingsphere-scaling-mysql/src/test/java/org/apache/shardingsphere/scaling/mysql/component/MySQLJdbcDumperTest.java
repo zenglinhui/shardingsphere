@@ -20,7 +20,7 @@ package org.apache.shardingsphere.scaling.mysql.component;
 import lombok.SneakyThrows;
 import org.apache.shardingsphere.scaling.core.config.DumperConfiguration;
 import org.apache.shardingsphere.scaling.core.config.InventoryDumperConfiguration;
-import org.apache.shardingsphere.scaling.core.config.JDBCScalingDataSourceConfiguration;
+import org.apache.shardingsphere.scaling.core.config.datasource.StandardJDBCDataSourceConfiguration;
 import org.apache.shardingsphere.scaling.core.datasource.DataSourceManager;
 import org.junit.Before;
 import org.junit.Test;
@@ -46,7 +46,7 @@ public final class MySQLJdbcDumperTest {
     
     private DataSourceManager dataSourceManager;
     
-    private MySQLJdbcDumper mySQLJdbcDumper;
+    private MySQLJdbcDumper mysqlJdbcDumper;
     
     @Mock
     private Connection connection;
@@ -54,7 +54,7 @@ public final class MySQLJdbcDumperTest {
     @Before
     public void setUp() {
         dataSourceManager = new DataSourceManager();
-        mySQLJdbcDumper = new MySQLJdbcDumper(mockInventoryDumperConfiguration(), dataSourceManager);
+        mysqlJdbcDumper = new MySQLJdbcDumper(mockInventoryDumperConfiguration(), dataSourceManager);
     }
     
     private InventoryDumperConfiguration mockInventoryDumperConfiguration() {
@@ -67,13 +67,13 @@ public final class MySQLJdbcDumperTest {
     
     private DumperConfiguration mockDumperConfiguration() {
         DumperConfiguration result = new DumperConfiguration();
-        result.setDataSourceConfiguration(new JDBCScalingDataSourceConfiguration("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false;MODE=MySQL", "root", "root"));
+        result.setDataSourceConfig(new StandardJDBCDataSourceConfiguration("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false;MODE=MySQL", "root", "root"));
         return result;
     }
     
     @SneakyThrows(SQLException.class)
     private void initTableData(final DumperConfiguration dumperConfig) {
-        DataSource dataSource = dataSourceManager.getDataSource(dumperConfig.getDataSourceConfiguration());
+        DataSource dataSource = dataSourceManager.getDataSource(dumperConfig.getDataSourceConfig());
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
             statement.execute("DROP TABLE IF EXISTS t_order");
@@ -89,8 +89,8 @@ public final class MySQLJdbcDumperTest {
         when(resultSet.getMetaData()).thenReturn(resultSetMetaData);
         when(resultSetMetaData.getColumnType(1)).thenReturn(Types.TIMESTAMP);
         when(resultSetMetaData.getColumnType(2)).thenReturn(Types.VARCHAR);
-        mySQLJdbcDumper.readValue(resultSet, 1);
-        mySQLJdbcDumper.readValue(resultSet, 2);
+        mysqlJdbcDumper.readValue(resultSet, 1);
+        mysqlJdbcDumper.readValue(resultSet, 2);
         verify(resultSet).getString(1);
         verify(resultSet).getObject(2);
     }
@@ -98,7 +98,7 @@ public final class MySQLJdbcDumperTest {
     @Test
     public void assertCreatePreparedStatement() throws SQLException {
         when(connection.prepareStatement("", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)).thenReturn(mock(PreparedStatement.class));
-        PreparedStatement preparedStatement = mySQLJdbcDumper.createPreparedStatement(connection, "");
+        PreparedStatement preparedStatement = mysqlJdbcDumper.createPreparedStatement(connection, "");
         verify(preparedStatement).setFetchSize(Integer.MIN_VALUE);
     }
 }
