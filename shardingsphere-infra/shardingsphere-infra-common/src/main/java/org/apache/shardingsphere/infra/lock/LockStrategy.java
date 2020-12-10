@@ -25,12 +25,20 @@ public interface LockStrategy {
     /**
      * Try to get lock.
      * 
+     * @param timeout the maximum time in milliseconds to acquire lock
      * @return true if get the lock, false if not
      */
-    boolean tryLock();
+    boolean tryLock(Long timeout);
     
     /**
      * Release lock.
      */
     void releaseLock();
+    
+    /**
+     * Check lock state.
+     * 
+     * @return true if all instances were locked, else false
+     */
+    boolean checkLock();
 }

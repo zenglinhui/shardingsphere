@@ -18,9 +18,9 @@
 package org.apache.shardingsphere.proxy.initializer.impl;
 
 import org.apache.shardingsphere.infra.auth.Authentication;
-import org.apache.shardingsphere.infra.auth.ProxyUser;
+import org.apache.shardingsphere.infra.auth.ShardingSphereUser;
 import org.apache.shardingsphere.infra.auth.yaml.config.YamlAuthenticationConfiguration;
-import org.apache.shardingsphere.infra.auth.yaml.config.YamlProxyUserConfiguration;
+import org.apache.shardingsphere.infra.auth.yaml.config.YamlShardingSphereUserConfiguration;
 import org.apache.shardingsphere.infra.config.RuleConfiguration;
 import org.apache.shardingsphere.infra.config.datasource.DataSourceParameter;
 import org.apache.shardingsphere.infra.context.metadata.MetaDataContexts;
@@ -41,6 +41,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -146,13 +147,12 @@ public final class StandardBootstrapInitializerTest extends AbstractBootstrapIni
     }
     
     private void assertAuthentication(final Authentication actual) {
-        assertThat(actual.getUsers().size(), is(1));
-        assertTrue(actual.getUsers().containsKey("root"));
-        ProxyUser proxyUser = actual.getUsers().get("root");
-        assertThat(proxyUser.getPassword(), is("root"));
-        assertThat(proxyUser.getAuthorizedSchemas().size(), is(2));
-        assertTrue(proxyUser.getAuthorizedSchemas().contains("ds-1"));
-        assertTrue(proxyUser.getAuthorizedSchemas().contains("ds-2"));
+        Optional<ShardingSphereUser> rootUser = actual.findUser("root");
+        assertTrue(rootUser.isPresent());
+        assertThat(rootUser.get().getPassword(), is("root"));
+        assertThat(rootUser.get().getAuthorizedSchemas().size(), is(2));
+        assertTrue(rootUser.get().getAuthorizedSchemas().contains("ds-1"));
+        assertTrue(rootUser.get().getAuthorizedSchemas().contains("ds-2"));
     }
     
     private YamlProxyServerConfiguration createYamlProxyServerConfiguration() {
@@ -170,15 +170,15 @@ public final class StandardBootstrapInitializerTest extends AbstractBootstrapIni
     }
     
     private YamlAuthenticationConfiguration createYamlAuthenticationConfiguration() {
-        Map<String, YamlProxyUserConfiguration> users = new HashMap<>(1, 1);
-        users.put("root", createYamlProxyUserConfiguration());
+        Map<String, YamlShardingSphereUserConfiguration> users = new HashMap<>(1, 1);
+        users.put("root", createYamlUserConfiguration());
         YamlAuthenticationConfiguration result = new YamlAuthenticationConfiguration();
         result.setUsers(users);
         return result;
     }
     
-    private YamlProxyUserConfiguration createYamlProxyUserConfiguration() {
-        YamlProxyUserConfiguration result = new YamlProxyUserConfiguration();
+    private YamlShardingSphereUserConfiguration createYamlUserConfiguration() {
+        YamlShardingSphereUserConfiguration result = new YamlShardingSphereUserConfiguration();
         result.setPassword("root");
         result.setAuthorizedSchemas("ds-1,ds-2");
         return result;

@@ -22,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Authentication.
@@ -30,5 +31,15 @@ import java.util.Map;
 @Getter
 public final class Authentication {
     
-    private final Map<String, ProxyUser> users = new LinkedHashMap<>();
+    private final Map<String, ShardingSphereUser> users = new LinkedHashMap<>();
+    
+    /**
+     * Find user.
+     * 
+     * @param username username
+     * @return found user
+     */
+    public Optional<ShardingSphereUser> findUser(final String username) {
+        return Optional.ofNullable(users.get(username));
+    }
 }

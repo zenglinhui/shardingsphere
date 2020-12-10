@@ -17,8 +17,8 @@
 
 package org.apache.shardingsphere.sql.parser.mysql.visitor.format.impl;
 
-import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.RuleNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -29,7 +29,6 @@ import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.AlterLi
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.AlterTableActionsContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.AlterTableContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.AssignmentValuesContext;
-import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.ColumnNameContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.ColumnNamesContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.CreateDefinitionClauseContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.CreateTableOptionsSpaceSeparatedContext;
@@ -39,7 +38,6 @@ import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.Explici
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.ExprContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.FieldLengthContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.IdentifierContext;
-import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.IgnoredIdentifierContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.LiteralsContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.NumberLiteralsContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.PrecisionContext;
@@ -54,9 +52,11 @@ import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.SelectC
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.StandaloneAlterTableActionContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.StringListContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.StringLiteralsContext;
+import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.String_Context;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.TableElementListContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.TableNameContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.TableValueConstructorContext;
+import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.TemporalLiteralsContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.TypeDatetimePrecisionContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.WhereClauseContext;
 import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.WithClauseContext;
@@ -64,12 +64,15 @@ import org.apache.shardingsphere.sql.parser.autogen.MySQLStatementParser.WithCla
 /**
  * MySQL Format SQL visitor for MySQL.
  */
-@Getter(AccessLevel.PROTECTED)
+@Getter
+@Setter
 public abstract class MySQLFormatSQLVisitor extends MySQLStatementBaseVisitor<String> {
 
     private StringBuilder result = new StringBuilder();
 
-    private final boolean uperCase = true;
+    private boolean uperCase = true;
+
+    private boolean parameterized = true;
 
     private int indentCount;
 
@@ -353,6 +356,7 @@ public abstract class MySQLFormatSQLVisitor extends MySQLStatementBaseVisitor<St
             formatPrintln();
             ExprContext right = ctx.expr(1);
             formatPrint(ctx.logicalOperator().getText());
+            formatPrint(" ");
             visit(right);
         } else if (null != ctx.notOperator()) {
             formatPrint(ctx.notOperator().getText());
@@ -510,19 +514,51 @@ public abstract class MySQLFormatSQLVisitor extends MySQLStatementBaseVisitor<St
 
     @Override
     public String visitLiterals(final LiteralsContext ctx) {
-        formatPrint("?");
+        if (parameterized) {
+            formatPrint("?");
+        } else {
+            super.visitLiterals(ctx);
+        }
+        return result.toString();
+    }
+
+    @Override
+    public String visitTemporalLiterals(final TemporalLiteralsContext ctx) {
+        visit(ctx.getChild(0));
+        formatPrint(ctx.SINGLE_QUOTED_TEXT().getText());
         return result.toString();
     }
 
     @Override
     public String visitStringLiterals(final StringLiteralsContext ctx) {
-        formatPrint("?");
+        if (parameterized) {
+            formatPrint("?");
+            return result.toString();
+        }
+        if (null != ctx.string_()) {
+            if (null != ctx.UNDERSCORE_CHARSET()) {
+                formatPrint(ctx.UNDERSCORE_CHARSET().getText());
+            }
+            visit(ctx.string_());
+        } else {
+            visit(ctx.NCHAR_TEXT());
+        }
+        return result.toString();
+    }
+
+    @Override
+    public String visitString_(final String_Context ctx) {
+        formatPrint(ctx.getText());
         return result.toString();
     }
 
     @Override
     public String visitNumberLiterals(final NumberLiteralsContext ctx) {
-        formatPrint("?");
+        if (parameterized) {
+            formatPrint("?");
+        } else {
+            formatPrint(ctx.getText());
+        }
         return result.toString();
     }
 
@@ -547,7 +583,7 @@ public abstract class MySQLFormatSQLVisitor extends MySQLStatementBaseVisitor<St
 
     @Override
     public String visitCteClause(final CteClauseContext ctx) {
-        visit(ctx.ignoredIdentifier());
+        visit(ctx.identifier());
         result.append(" ");
         if (null != ctx.columnNames()) {
             visit(ctx.columnNames());
@@ -559,20 +595,7 @@ public abstract class MySQLFormatSQLVisitor extends MySQLStatementBaseVisitor<St
     }
 
     @Override
-    public String visitIgnoredIdentifier(final IgnoredIdentifierContext ctx) {
-        visit(ctx.identifier(0));
-        if (null != ctx.DOT_()) {
-            visit(ctx.DOT_());
-            visit(ctx.identifier(1));
-        }
-        return result.toString();
-    }
-
-    @Override
     public String visitColumnNames(final ColumnNamesContext ctx) {
-        if (null != ctx.LP_()) {
-            visit(ctx.LP_());
-        }
         int columnCount = ctx.columnName().size();
         for (int i = 0; i < columnCount; i++) {
             if (i != 0 && i < columnCount - 1) {
@@ -581,19 +604,6 @@ public abstract class MySQLFormatSQLVisitor extends MySQLStatementBaseVisitor<St
                 visit(ctx.columnName(i));
             }
         }
-        if (null != ctx.RP_()) {
-            visit(ctx.RP_());
-        }
-        return result.toString();
-    }
-
-    @Override
-    public String visitColumnName(final ColumnNameContext ctx) {
-        if (null != ctx.owner()) {
-            visit(ctx.owner());
-            visit(ctx.DOT_(0));
-        }
-        visit(ctx.name());
         return result.toString();
     }
 
